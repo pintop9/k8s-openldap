@@ -72,7 +72,7 @@ Once the OpenLDAP pods are fully up and ready, run this script to apply the OATH
 
 ## Authentication and MFA Enrollment
 
-After both deployment and configuration scripts have run successfully, you can test the authentication flow.
+After both deployment and configuration scripts have run successfully, you can test the authentication flow with our intelligent Python CLI script.
 
 1.  **Start `kubectl port-forward` (in a NEW, separate terminal and leave it running):**
     ```bash
@@ -85,21 +85,24 @@ After both deployment and configuration scripts have run successfully, you can t
     python ldap_cli_login.py
     ```
 
-3.  **When prompted:**
-    *   **Username:** `asmith` (or `bjohnson`, `cbrown`)
-    *   **Password:** `password123`
+3.  **The script will prompt you:**
+    *   **Username:** (e.g., `asmith`, `bjohnson`, `cbrown`)
+    *   **Password:** (Input will show `*` for each character, with 3 retry attempts)
+    *   **OTP Code:** (If MFA is configured, input will be visible, with 3 retry attempts)
 
-#### First-Time Login Flow:
+#### First-Time Login Flow (MFA Enrollment):
 
--   The script will detect that MFA is not yet configured for this user.
--   It will automatically generate a new MFA secret, save it to the user's LDAP profile, and display a **QR Code** in the terminal.
--   Scan this QR code with your OTP app.
--   The script will wait for you to press 'y' to confirm.
--   The login process for this first time is now complete.
+-   The script will first prompt for your username and password (3 attempts).
+-   If the password is correct, it will detect that MFA is not yet configured for this user.
+-   It will display a **smaller QR Code** directly in the terminal.
+-   **Scan this QR code with your OTP app** (e.g., Google Authenticator, Authy).
+-   The script will then ask you to **Press 'y' to confirm** you have scanned the code and saved it to your app, or 'n' to cancel.
+    *   **If 'y':** The secret will be saved to your LDAP profile, and the script will immediately prompt you for the 6-digit OTP code (3 attempts) from your app to complete the current login.
+    *   **If 'n':** OTP enrollment will be skipped for this session. You will be logged in with password only, and you can enroll MFA later.
 
-#### Subsequent Logins:
+#### Subsequent Logins (MFA Verification):
 
--   Enter the username and password.
--   The script will detect that MFA is configured.
--   It will now prompt you for the 6-digit "OTP Code".
--   Enter the code from your app to complete the authentication.
+-   The script will first prompt for your username and password (3 attempts).
+-   If the password is correct, it will detect that MFA is already configured.
+-   It will then prompt you for the 6-digit "OTP Code" (3 attempts) from your OTP app.
+-   Enter the current code from your app to complete the authentication.
