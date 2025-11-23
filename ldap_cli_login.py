@@ -78,7 +78,7 @@ def check_password(username, password):
 
 if __name__ == "__main__":
     print("--- Advanced LDAP CLI Authenticator ---")
-    username = input("Username (e.g., asmith): ")
+    username = input("Username: ")
     if not username:
         sys.exit("Username cannot be empty.")
 
