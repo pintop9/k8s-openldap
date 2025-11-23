@@ -1,0 +1,62 @@
+# LDIF to create all OUs, groups, and users
+
+# Entry for Users OU
+dn: ou=users,dc=example,dc=org
+objectClass: organizationalUnit
+ou: users
+
+# Entry for Groups OU
+dn: ou=groups,dc=example,dc=org
+objectClass: organizationalUnit
+ou: groups
+
+# Entry for the 'users' group
+dn: cn=users,ou=groups,dc=example,dc=org
+objectClass: posixGroup
+cn: users
+gidNumber: 500
+
+# Entry for Alice Smith
+dn: cn=asmith,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+objectClass: top
+cn: Alice Smith
+cn: asmith
+sn: Smith
+uid: asmith
+uidNumber: 1002
+gidNumber: 500
+homeDirectory: /home/users/asmith
+userPassword: password123
+
+# Entry for Bob Johnson
+dn: cn=bjohnson,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+objectClass: top
+cn: Bob Johnson
+cn: bjohnson
+sn: Johnson
+uid: bjohnson
+uidNumber: 1003
+gidNumber: 500
+homeDirectory: /home/users/bjohnson
+userPassword: password123
+
+# Entry for Charlie Brown
+dn: cn=cbrown,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+objectClass: top
+cn: Charlie Brown
+cn: cbrown
+sn: Brown
+uid: cbrown
+uidNumber: 1004
+gidNumber: 500
+homeDirectory: /home/users/cbrown
+userPassword: password123

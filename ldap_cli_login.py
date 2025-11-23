@@ -6,51 +6,49 @@ import pyotp
 import qrcode
 
 # --- Configuration ---
-# To connect from your local machine, use a forwarded port.
-# Run this in a separate terminal: kubectl port-forward -n ldap service/my-openldap 3890:389
 LDAP_SERVER_URI = "localhost"
 LDAP_PORT = 3890
 BASE_DN = "dc=example,dc=org"
 USERS_OU = "ou=users"
-
-# Admin credentials are now needed for the script to modify the user's entry on first login
 ADMIN_BIND_DN = "cn=admin,dc=example,dc=org"
-ADMIN_PASSWORD = "Helmadmin123!" # Replace with your actual admin password if different
+ADMIN_PASSWORD = "Helmadmin123!"
 
 def generate_qr_for_user(username, secret_key, issuer_name="My-LDAP-App"):
-    """Generates a TOTP provisioning URI and displays it as a QR code."""
+    """Generates a smaller TOTP QR code and waits for user confirmation."""
     totp_uri = pyotp.totp.TOTP(secret_key).provisioning_uri(name=username, issuer_name=issuer_name)
     print("\n--- FIRST TIME MFA SETUP ---")
-    print("Scan the QR Code below with your Google Authenticator app.")
-    print("You will use the code from the app on your next login.\n")
-    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=10, border=4)
+    print("Scan the QR Code below with your OTP app (e.g., Google Authenticator, Authy).\n")
+    
+    qr = qrcode.QRCode(version=1, error_correction=qrcode.constants.ERROR_CORRECT_L, box_size=4, border=4)
     qr.add_data(totp_uri)
     qr.make(fit=True)
     qr.print_tty()
+    
+    print("\nQR code displayed.")
+    while True:
+        proceed = input("Once you have scanned the code, press 'y' to continue: ").lower()
+        if proceed == 'y':
+            break
 
 def enroll_user_for_mfa(username, user_dn):
     """Generates a secret, adds it to the user's LDAP entry, and shows a QR code."""
     try:
-        # Connect as admin to modify the user's entry
         server = Server(LDAP_SERVER_URI, port=LDAP_PORT, get_info=ALL)
         admin_conn = Connection(server, user=ADMIN_BIND_DN, password=ADMIN_PASSWORD, auto_bind=True)
-        
-        # Generate a new secret
         secret_key = pyotp.random_base32()
         
-        # Modify the user to add the oathTOTPAccount object class and the secret
         admin_conn.modify(user_dn, {
             'objectClass': [(MODIFY_ADD, ['oathTOTPAccount'])],
             'oathTOTPSecret': [(MODIFY_ADD, [secret_key])]
         })
         
         if admin_conn.result['result'] == 0:
-            print("\nSuccessfully enrolled user for MFA.")
+            print("✅ Successfully enrolled user for MFA.")
             generate_qr_for_user(username, secret_key)
             admin_conn.unbind()
             return True
         else:
-            print(f"Error enrolling user for MFA: {admin_conn.result['description']}")
+            print(f"❌ Error enrolling user for MFA: {admin_conn.result['description']}")
             admin_conn.unbind()
             return False
             
@@ -58,75 +56,82 @@ def enroll_user_for_mfa(username, user_dn):
         print(f"An unexpected error occurred during MFA enrollment: {e}")
         return False
 
-def authenticate_and_check_mfa(username, password):
-    """
-    Handles the entire login flow:
-    1. Checks password.
-    2. If password is good, checks if MFA is enrolled.
-    3. If not enrolled, starts enrollment.
-    4. If enrolled, asks for and verifies MFA code.
-    """
+def check_password(username, password):
+    """Authenticates a user's password only. Returns the connection on success."""
     server = Server(LDAP_SERVER_URI, port=LDAP_PORT, get_info=ALL)
     user_dn = f"cn={username},{USERS_OU},{BASE_DN}"
-
     try:
-        # Step 1: Authenticate user with their password
         print(f"\nStep 1: Authenticating password for {user_dn}...")
-        user_conn = Connection(server, user=user_dn, password=password, auto_bind=True)
+        conn = Connection(server, user=user_dn, password=password, auto_bind=True)
         print("✅ Password authentication successful.")
-
-        # Step 2: Check for existing MFA enrollment
-        print("\nStep 2: Checking MFA enrollment status...")
-        user_conn.search(user_dn, '(objectClass=oathTOTPAccount)', attributes=['oathTOTPSecret'])
-        
-        if not user_conn.entries or 'oathTOTPSecret' not in user_conn.entries[0]:
-            # First-time login: Enroll the user
-            print("MFA not configured for this user. Starting enrollment...")
-            user_conn.unbind()
-            return enroll_user_for_mfa(username, user_dn)
-        else:
-            # Subsequent login: Verify MFA code
-            print("MFA is configured. Please provide your code.")
-            secret_key = user_conn.entries[0]['oathTOTPSecret'].value
-            mfa_code = input("Google Authenticator Code (will be visible): ")
-            
-            if not mfa_code.isdigit() or len(mfa_code) != 6:
-                print("Invalid MFA code format. Must be 6 digits.")
-                user_conn.unbind()
-                return False
-
-            totp = pyotp.TOTP(secret_key)
-            if totp.verify(mfa_code):
-                print("✅ MFA code verification successful.")
-                user_conn.unbind()
-                return True
-            else:
-                print("❌ MFA code verification failed.")
-                user_conn.unbind()
-                return False
-
+        return conn
     except LDAPBindError:
         print("❌ Password authentication failed (Invalid Credentials).")
-        return False
+        return None
     except LDAPSocketOpenError:
         print(f"Connection failed: Could not connect to LDAP server at {LDAP_SERVER_URI}:{LDAP_PORT}.")
         print("Please ensure kubectl port-forward is running.")
-        return False
+        return None
     except LDAPException as e:
         print(f"An LDAP error occurred: {e}")
-        return False
+        return None
 
 if __name__ == "__main__":
     print("--- Advanced LDAP CLI Authenticator ---")
     username = input("Username (e.g., asmith): ")
     if not username:
         sys.exit("Username cannot be empty.")
-        
-    password = getpass.getpass("Password: ")
-    if not password:
-        sys.exit("Password cannot be empty.")
 
-    if authenticate_and_check_mfa(username, password):
-        print("\nAuthentication process complete.")
+    # --- Password Authentication Loop ---
+    user_conn = None
+    max_password_attempts = 3
+    for attempt in range(max_password_attempts):
+        password = getpass.getpass(f"Password (attempt {attempt + 1}/{max_password_attempts}): ")
+        if not password:
+            print("Password cannot be empty.")
+            continue
+        
+        user_conn = check_password(username, password)
+        if user_conn:
+            break # Exit loop on successful password auth
+    
+    if not user_conn:
+        print("\nToo many failed password attempts. Exiting.")
+        sys.exit(1)
+
+    # --- MFA Check / Enrollment ---
+    print("\nStep 2: Checking MFA enrollment status...")
+    user_dn = f"cn={username},{USERS_OU},{BASE_DN}"
+    user_conn.search(user_dn, '(objectClass=oathTOTPAccount)', attributes=['oathTOTPSecret'])
+    
+    if not user_conn.entries or 'oathTOTPSecret' not in user_conn.entries[0]:
+        # First-time login: Enroll the user
+        print("MFA not configured for this user. Starting enrollment...")
+        user_conn.unbind() # Close the connection before starting enrollment
+        if not enroll_user_for_mfa(username, user_dn):
+             sys.exit("MFA enrollment failed. Please contact an administrator.")
+        print("\nEnrollment complete. Please log in again using your new OTP code on your next login.")
+        sys.exit(0)
     else:
-        print("\nAuthentication process failed.")
+        # Subsequent login: Verify MFA code
+        print("MFA is configured. Please provide your OTP code.")
+        secret_key = user_conn.entries[0]['oathTOTPSecret'].value
+        user_conn.unbind() # Close the connection before starting the OTP loop
+        
+        max_mfa_attempts = 3
+        for attempt in range(max_mfa_attempts):
+            mfa_code = input(f"OTP Code (will be visible, attempt {attempt + 1}/{max_mfa_attempts}): ")
+            
+            if not mfa_code.isdigit() or len(mfa_code) != 6:
+                print("Invalid OTP code format. Must be 6 digits.")
+                continue
+
+            totp = pyotp.TOTP(secret_key)
+            if totp.verify(mfa_code):
+                print("\n✅ Full authentication (Password + OTP) successful!")
+                sys.exit(0) # Success!
+            else:
+                print("❌ OTP code verification failed.")
+        
+        print("\nToo many failed OTP attempts. Exiting.")
+        sys.exit(1)

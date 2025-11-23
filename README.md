@@ -1,10 +1,10 @@
-# OpenLDAP on Kubernetes (Minikube) Project - Streamlined
+# OpenLDAP on Kubernetes (Minikube) Project - Automated Deployment
 
-This document outlines the streamlined process for deploying a fully configured OpenLDAP service on Minikube, complete with custom users and a first-login MFA enrollment flow.
+This document outlines the streamlined and automated process for deploying a fully configured OpenLDAP service on Minikube, complete with custom users and a first-login MFA enrollment flow.
 
 ## Project Overview
 
-The goal is to deploy OpenLDAP on Kubernetes with a configuration-driven setup. This includes adding a custom OATH schema for MFA, pre-loading users, and using an intelligent script for first-time MFA enrollment.
+The goal is to deploy OpenLDAP on Kubernetes with a robust, configuration-driven, and automated setup. This includes adding a custom OATH schema for MFA, pre-loading users, and using an intelligent script for first-time MFA enrollment.
 
 ## Prerequisites
 
@@ -12,6 +12,18 @@ The goal is to deploy OpenLDAP on Kubernetes with a configuration-driven setup. 
 - `kubectl`
 - `helm`
 - `python` and `pip`
+
+## Project Files
+
+*   **`values.yaml`**: Your main Helm values file, which embeds the OATH schema, and user/group definitions.
+*   **`oath_schema.ldif`**: The custom OATH schema definition.
+*   **`all-users.ldif`**: Contains all custom OUs, groups, and user definitions.
+*   **`ldap_cli_login.py`**: The Python script for authentication and MFA enrollment.
+*   **`generate_qr.py`**: The Python script for MFA QR code generation.
+*   **`requirements.txt`**: Python dependencies for the scripts.
+*   **`deploy.sh`**: Shell script for Stage 1: Initial Helm deployment.
+*   **`stage2-configure.sh`**: Shell script for Stage 2: Applying custom configurations.
+*   **`README.md`**: This guide.
 
 ## Required Python Libraries
 
@@ -22,75 +34,72 @@ pip install -r requirements.txt
 
 ---
 
-## Deployment and Configuration
+## Automated Deployment and Configuration
 
-The entire deployment is handled by a single `helm install` command that references our custom configuration files. This process is idempotent and ensures a consistent setup.
+The entire deployment and configuration process is now automated using two sequential shell scripts.
 
-### Project Files
+### Step 1: Deploy OpenLDAP (Run `deploy.sh`)
 
-*   **`custom-values.yaml`**: A comprehensive Helm values file that contains all our customizations, including the OATH schema, user/group definitions, and service type configuration.
-*   **`ldap_cli_login.py`**: The Python script for authentication and MFA enrollment.
-*   **`requirements.txt`**: Python dependencies for the script.
-*   **`README.md`**: This file.
+This script handles the cleanup and the initial Helm installation of the OpenLDAP server.
 
-## Deployment and Configuration
+1.  **Ensure you are in your project directory.**
+2.  **Make the script executable:**
+    ```bash
+    chmod +x deploy.sh
+    ```
+3.  **Run the deployment script:**
+    ```bash
+    ./deploy.sh
+    ```
+    *   This script will clean up any previous installations, install the OpenLDAP Helm chart, and print instructions to monitor the pods.
+    *   **Crucially, wait for all OpenLDAP pods (`my-openldap-0`, `-1`, `-2`) to be in the `Running` and `1/1` READY state before proceeding to Step 2.** You can monitor them using `kubectl get pods -n ldap --watch`.
 
-The entire deployment is handled by a single `helm install` command that uses our `custom-values.yaml` file.
+### Step 2: Configure OpenLDAP (Run `stage2-configure.sh`)
 
-### Deployment Command
+Once the OpenLDAP pods are fully up and ready, run this script to apply the OATH schema and create your custom users.
 
-First, make sure you have cleaned up any previous installations:
-```bash
-helm uninstall my-openldap -n ldap
-kubectl delete namespace ldap
-```
-
-Then, run the following `helm install` command from the root of the project directory:
-
-```bash
-helm install my-openldap helm-openldap/openldap-stack-ha \
-  --namespace ldap \
-  --create-namespace \
-  -f values.yaml
-```
-This single command installs the chart and applies all of our custom configurations at once.
-
-
+1.  **Make the script executable:**
+    ```bash
+    chmod +x stage2-configure.sh
+    ```
+2.  **Run the configuration script:**
+    ```bash
+    ./stage2-configure.sh
+    ```
+    *   This script will apply the custom OATH schema and create the `ou=users`, `ou=groups`, `cn=users` group, and the three custom users (`asmith`, `bjohnson`, `cbrown`) with `password123` as their initial password.
 
 ---
 
 ## Authentication and MFA Enrollment
 
-The `ldap_cli_login.py` script now handles both standard authentication and first-time MFA enrollment.
+After both deployment and configuration scripts have run successfully, you can test the authentication flow.
 
-### Connecting to the LDAP Service
+1.  **Start `kubectl port-forward` (in a NEW, separate terminal and leave it running):**
+    ```bash
+    kubectl port-forward -n ldap service/my-openldap 3890:389
+    ```
+    *The `ldap_cli_login.py` script is pre-configured to connect to `localhost:3890`.*
 
-The Python script runs on your local machine and needs to connect to the LDAP service running inside Minikube. Use `kubectl port-forward` to make this connection possible.
+2.  **Run the Python Login Script:**
+    ```bash
+    python ldap_cli_login.py
+    ```
 
-**In a separate, dedicated terminal, run and leave this command running:**
-```bash
-kubectl port-forward -n ldap service/my-openldap 3890:389
-```
-The script is pre-configured to connect to `localhost:3890`.
-
-### Running the Login Script
-
-Execute the script to start the login process:
-```bash
-python ldap_cli_login.py
-```
+3.  **When prompted:**
+    *   **Username:** `asmith` (or `bjohnson`, `cbrown`)
+    *   **Password:** `password123`
 
 #### First-Time Login Flow:
 
-1.  Enter the username (e.g., `asmith`) and password (`password123`).
-2.  The script will detect that MFA is not yet configured for this user.
-3.  It will automatically generate a new MFA secret, save it to the user's LDAP profile, and display a **QR Code** in the terminal.
-4.  Scan this QR code with your Google Authenticator app.
-5.  The login process for this first time is now complete.
+-   The script will detect that MFA is not yet configured for this user.
+-   It will automatically generate a new MFA secret, save it to the user's LDAP profile, and display a **QR Code** in the terminal.
+-   Scan this QR code with your OTP app.
+-   The script will wait for you to press 'y' to confirm.
+-   The login process for this first time is now complete.
 
 #### Subsequent Logins:
 
-1.  Enter the username and password.
-2.  The script will detect that MFA is configured.
-3.  It will now prompt you for the 6-digit "Google Authenticator Code".
-4.  Enter the code from your app to complete the authentication.
+-   Enter the username and password.
+-   The script will detect that MFA is configured.
+-   It will now prompt you for the 6-digit "OTP Code".
+-   Enter the code from your app to complete the authentication.
