@@ -1,0 +1,17 @@
+# OATH schema for OpenLDAP
+# From https://github.com/pfalcon/oath-openldap
+
+dn: cn=oath,cn=schema,cn=config
+objectClass: olcSchemaConfig
+cn: oath
+olcAttributeTypes: ( 1.3.6.1.4.1.7165.2.2.1.1 NAME 'oathTOTPSecret'
+  DESC 'OATH-TOTP secret'
+  EQUALITY caseIgnoreMatch
+  SUBSTR caseIgnoreSubstringsMatch
+  SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+  SINGLE-VALUE )
+olcObjectClasses: ( 1.3.6.1.4.1.7165.2.2.2.1 NAME 'oathTOTPAccount'
+  DESC 'OATH-TOTP account'
+  SUP top
+  AUXILIARY
+  MAY ( oathTOTPSecret ) )

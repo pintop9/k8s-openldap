@@ -1,0 +1,55 @@
+# This LDIF file is applied automatically by Helm.
+# It deletes default users and creates our custom users.
+
+# Delete default user01
+dn: cn=user01,ou=users,dc=example,dc=org
+changetype: delete
+
+# Delete default user02
+dn: cn=user02,ou=users,dc=example,dc=org
+changetype: delete
+
+# Entry for Alice Smith (ready for MFA enrollment)
+dn: cn=asmith,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+objectClass: top
+cn: Alice Smith
+cn: asmith
+sn: Smith
+uid: asmith
+uidNumber: 1002
+gidNumber: 500
+homeDirectory: /home/users/asmith
+userPassword: password123
+
+# Entry for Bob Johnson (ready for MFA enrollment)
+dn: cn=bjohnson,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+objectClass: top
+cn: Bob Johnson
+cn: bjohnson
+sn: Johnson
+uid: bjohnson
+uidNumber: 1003
+gidNumber: 500
+homeDirectory: /home/users/bjohnson
+userPassword: password123
+
+# Entry for Charlie Brown (ready for MFA enrollment)
+dn: cn=cbrown,ou=users,dc=example,dc=org
+objectClass: inetOrgPerson
+objectClass: posixAccount
+objectClass: shadowAccount
+objectClass: top
+cn: Charlie Brown
+cn: cbrown
+sn: Brown
+uid: cbrown
+uidNumber: 1004
+gidNumber: 500
+homeDirectory: /home/users/cbrown
+userPassword: password123
