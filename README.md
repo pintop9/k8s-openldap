@@ -26,20 +26,36 @@ pip install -r requirements.txt
 
 The entire deployment is handled by a single `helm install` command that references our custom configuration files. This process is idempotent and ensures a consistent setup.
 
-### Included Configuration Files:
+### Project Files
 
-1.  **`oath_schema.ldif`**: Extends the OpenLDAP schema to support Time-based One-Time Passwords (TOTP/MFA).
-2.  **`setup.ldif`**: A setup script that runs after the schema is loaded. It deletes the default chart users and creates three new custom users (`asmith`, `bjohnson`, `cbrown`) ready for MFA enrollment.
+*   **`custom-values.yaml`**: A comprehensive Helm values file that contains all our customizations, including the OATH schema, user/group definitions, and service type configuration.
+*   **`ldap_cli_login.py`**: The Python script for authentication and MFA enrollment.
+*   **`requirements.txt`**: Python dependencies for the script.
+*   **`README.md`**: This file.
+
+## Deployment and Configuration
+
+The entire deployment is handled by a single `helm install` command that uses our `custom-values.yaml` file.
 
 ### Deployment Command
 
-To deploy or upgrade your OpenLDAP instance with this configuration, run the following `helm` command from the root of the project directory.
+First, make sure you have cleaned up any previous installations:
+```bash
+helm uninstall my-openldap -n ldap
+kubectl delete namespace ldap
+```
 
-This command installs the chart and uses the `--set-file` flag to automatically load our custom schema and setup files into the OpenLDAP configuration.
+Then, run the following `helm install` command from the root of the project directory:
 
 ```bash
-helm install my-openldap helm-openldap/openldap-stack-ha --namespace ldap --set-file customSchemaFiles.oath_ldif=./oath_schema.ldif --set-file customLdifFiles.setup_ldif=./setup.ldif --set service.type=NodePort
+helm install my-openldap helm-openldap/openldap-stack-ha \
+  --namespace ldap \
+  --create-namespace \
+  -f values.yaml
 ```
+This single command installs the chart and applies all of our custom configurations at once.
+
+
 
 ---
 

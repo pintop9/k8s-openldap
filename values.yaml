@@ -1,0 +1,101 @@
+# Custom values for the openldap-stack-ha Helm chart
+# This file centralizes all our customizations for a clean, one-step install.
+
+# Set the service type to NodePort for stable external access.
+# This avoids the conflict we saw when using `kubectl patch` separately.
+service:
+  type: NodePort
+
+# Disable the default users and groups that come with the chart image.
+# We will manage users exclusively through our customLdifFiles.
+env:
+  LDAP_SKIP_DEFAULT_TREE: "yes"
+
+# Load the custom OATH schema for MFA.
+# The key 'oath.ldif' is the filename that will be created inside the pod.
+customSchemaFiles:
+  oath.ldif: |-
+    # OATH schema for OpenLDAP
+    # From https://github.com/pfalcon/oath-openldap
+    dn: cn=oath,cn=schema,cn=config
+    objectClass: olcSchemaConfig
+    cn: oath
+    olcAttributeTypes: ( 1.3.6.1.4.1.7165.2.2.1.1 NAME 'oathTOTPSecret'
+      DESC 'OATH-TOTP secret'
+      EQUALITY caseIgnoreMatch
+      SUBSTR caseIgnoreSubstringsMatch
+      SYNTAX 1.3.6.1.4.1.1466.115.121.1.15
+      SINGLE-VALUE )
+    olcObjectClasses: ( 1.3.6.1.4.1.7165.2.2.2.1 NAME 'oathTOTPAccount'
+      DESC 'OATH-TOTP account'
+      SUP top
+      AUXILIARY
+      MAY ( oathTOTPSecret ) )
+
+# Load the custom setup LDIF to create our OUs, groups, and users.
+# The key 'setup.ldif' is the filename that will be created inside the pod.
+customLdifFiles:
+  setup.ldif: |-
+    # This LDIF file is applied automatically by Helm.
+    # It creates our required OUs, groups, and custom users.
+
+    # Entry for Users OU
+    dn: ou=users,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: users
+
+    # Entry for Groups OU
+    dn: ou=groups,dc=example,dc=org
+    objectClass: organizationalUnit
+    ou: groups
+
+    # Entry for the 'users' group
+    dn: cn=users,ou=groups,dc=example,dc=org
+    objectClass: posixGroup
+    cn: users
+    gidNumber: 500
+
+    # Entry for Alice Smith (ready for MFA enrollment)
+    dn: cn=asmith,ou=users,dc=example,dc=org
+    objectClass: inetOrgPerson
+    objectClass: posixAccount
+    objectClass: shadowAccount
+    objectClass: top
+    cn: Alice Smith
+    cn: asmith
+    sn: Smith
+    uid: asmith
+    uidNumber: 1002
+    gidNumber: 500
+    homeDirectory: /home/users/asmith
+    userPassword: password123
+
+    # Entry for Bob Johnson (ready for MFA enrollment)
+    dn: cn=bjohnson,ou=users,dc=example,dc=org
+    objectClass: inetOrgPerson
+    objectClass: posixAccount
+    objectClass: shadowAccount
+    objectClass: top
+    cn: Bob Johnson
+    cn: bjohnson
+    sn: Johnson
+    uid: bjohnson
+    uidNumber: 1003
+    gidNumber: 500
+    homeDirectory: /home/users/bjohnson
+    userPassword: password123
+
+    # Entry for Charlie Brown (ready for MFA enrollment)
+    dn: cn=cbrown,ou=users,dc=example,dc=org
+    objectClass: inetOrgPerson
+    objectClass: posixAccount
+    objectClass: shadowAccount
+    objectClass: top
+    cn: Charlie Brown
+    cn: cbrown
+    sn: Brown
+    uid: cbrown
+    uidNumber: 1004
+    gidNumber: 500
+    homeDirectory: /home/users/cbrown
+    userPassword: password123
