@@ -38,13 +38,8 @@ To deploy or upgrade your OpenLDAP instance with this configuration, run the fol
 This command installs the chart and uses the `--set-file` flag to automatically load our custom schema and setup files into the OpenLDAP configuration.
 
 ```bash
-helm install my-openldap helm-openldap/openldap-stack-ha \
-  --namespace ldap \
-  --create-namespace \
-  --set-file customSchemaFiles.oath\.ldif=./oath_schema.ldif \
-  --set-file customLdifFiles.setup\.ldif=./setup.ldif
+helm install my-openldap helm-openldap/openldap-stack-ha --namespace ldap --set-file customSchemaFiles.oath_ldif=./oath_schema.ldif --set-file customLdifFiles.setup_ldif=./setup.ldif --set service.type=NodePort
 ```
-*Note: If you are upgrading an existing release, use `helm upgrade` instead of `helm install`.*
 
 ---
 
